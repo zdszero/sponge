@@ -28,6 +28,7 @@ int main() {
 
         // overlapping segments
         for (unsigned rep_no = 0; rep_no < NREPS; ++rep_no) {
+            // printf("rep num: %u\n", rep_no);
             StreamReassembler buf{NSEGS * MAX_SEG_LEN};
 
             vector<tuple<size_t, size_t>> seq_size;
@@ -45,11 +46,12 @@ int main() {
 
             for (auto [off, sz] : seq_size) {
                 string dd(d.cbegin() + off, d.cbegin() + off + sz);
-                buf.push_substring(move(dd), off, off + sz == offset);
+                buf.push_substring(std::move(dd), off, off + sz == offset);
             }
 
             auto result = read(buf);
             if (buf.stream_out().bytes_written() != offset) {  // read bytes
+                printf("bytes_written: %ld, offset: %ld\n", buf.stream_out().bytes_written(), offset);
                 throw runtime_error("test 2 - number of RX bytes is incorrect");
             }
             if (!equal(result.cbegin(), result.cend(), d.cbegin())) {
