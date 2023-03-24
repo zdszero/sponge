@@ -51,11 +51,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 }
 
 void StreamReassembler::caching_data(size_t start, const std::string &s) {
-    if (_cached_data.count(start)) {
-        auto it = _cached_data.find(start);
-        if (s.size() > it->second.size()) {
-            it->second = s;
-        }
+    if (_cached_data.count(start) && _cached_data[start].size() >= s.size()) {
         return;
     }
     _cached_data[start] = s;
@@ -114,3 +110,5 @@ size_t StreamReassembler::unassembled_bytes() const {
 }
 
 bool StreamReassembler::empty() const { return _cached_data.empty(); }
+
+size_t StreamReassembler::expected_stream_index() const { return _first_unassembled; }
