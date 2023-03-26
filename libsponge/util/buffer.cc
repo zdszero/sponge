@@ -12,6 +12,16 @@ void Buffer::remove_prefix(const size_t n) {
     }
 }
 
+void Buffer::set_start_offset(size_t index) {
+    if (index > str().size()) {
+        throw out_of_range("Buffer::set_start_offset");
+    }
+    _starting_offset = index;
+    if (_storage and _starting_offset == _storage->size()) {
+        _storage.reset();
+    }
+}
+
 void BufferList::append(const BufferList &other) {
     for (const auto &buf : other._buffers) {
         _buffers.push_back(buf);

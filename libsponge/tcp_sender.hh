@@ -8,6 +8,7 @@
 
 #include <functional>
 #include <queue>
+#include <map>
 
 //! \brief The "sender" part of a TCP implementation.
 
@@ -16,6 +17,38 @@
 //! maintains the Retransmission Timer, and retransmits in-flight
 //! segments if the retransmission timer expires.
 class TCPSender {
+    class Timer {
+      public:
+        Timer(size_t timeout): _timeout(timeout) {}
+        void stop() {
+          _stopped = true;
+        }
+        void start() {
+          _stopped = false;
+        }
+        void reset(size_t timeout) {
+          if (_stopped) {
+            return;
+          }
+          _time_duration = 0;
+          _timeout = timeout;
+        }
+        bool is_timeout() const {
+          if (_stopped) {
+            return false;
+          }
+          return _time_duration >= _timeout;
+        }
+        void tick(const size_t ms) {
+          if (!_stopped) {
+            _time_duration += ms;
+          }
+        }
+      private:
+        size_t _timeout;
+        size_t _time_duration{0};
+        bool _stopped{true};
+    };
   private:
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
@@ -31,6 +64,18 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+
+
+    unsigned int _rto;
+    Timer _timer;
+    bool _sync{false};
+    bool _syn_sent{false}; // avoid 
+    bool _fin_sent{false};
+    uint16_t _win{65535};
+    uint16_t _reported_win{65535};
+    uint64_t _lastest_ack_absno{0};
+    size_t _consecutive_retransmissions{0};
+    std::map<uint64_t, TCPSegment> _outgoing_segments{};
 
   public:
     //! Initialize a TCPSender
