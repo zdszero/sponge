@@ -56,7 +56,7 @@ size_t ByteStream::buffer_size() const { return _size; }
 
 bool ByteStream::buffer_empty() const { return _size == 0; }
 
-bool ByteStream::eof() const { return buffer_empty() && input_ended(); }
+bool ByteStream::eof() const { return buffer_empty() && input_ended() && !error(); }
 
 size_t ByteStream::bytes_written() const { return _bytes_written; }
 

@@ -36,14 +36,7 @@ uint64_t TCPSender::bytes_in_flight() const {
 void TCPSender::fill_window() {
     // buf_size, win, MAX_PAYLOAD_SIZE
     if (!_syn_sent) {
-        TCPSegment syn_seg;
-        syn_seg.header().syn = true;
-        syn_seg.header().seqno = _isn;
-        _segments_out.push(syn_seg);
-        _next_seqno += 1;
-        _outgoing_segments[_next_seqno] = syn_seg;
-        _syn_sent = true;
-        _timer.start();
+        send_empty_segment();
         return;
     }
     if (!_sync) {
@@ -51,17 +44,21 @@ void TCPSender::fill_window() {
     }
     if (_win == 0 && _outgoing_segments.empty()) {
         TCPSegment keep_alive;
-        keep_alive.header().seqno = wrap(_next_seqno, _isn);
-        if (_stream.buffer_size() > 0) {
-            keep_alive.payload() = Buffer(_stream.read(1));
-        } else if (_stream.input_ended()) {
-            keep_alive.header().fin = true;
-            _fin_sent = true;
+        if (_stream.buffer_size() > 0 || _stream.input_ended()) {
+            keep_alive.header().seqno = wrap(_next_seqno, _isn);
+            if (_stream.buffer_size() > 0) {
+                keep_alive.payload() = Buffer(_stream.read(1));
+            } else if (_stream.input_ended()) {
+                keep_alive.header().fin = true;
+                _fin_sent = true;
+            }
+            _outgoing_segments[_next_seqno] = keep_alive;
+            _timer.start();
+        } else {
+            keep_alive.header().seqno = wrap(_next_seqno - 1, _isn);
         }
         _next_seqno += keep_alive.length_in_sequence_space();
         _segments_out.push(keep_alive);
-        _outgoing_segments[_next_seqno] = keep_alive;
-        _timer.start();
         return;
     }
     while (_win > 0 && _stream.buffer_size() > 0) {
@@ -161,6 +158,13 @@ unsigned int TCPSender::consecutive_retransmissions() const { return _consecutiv
 void TCPSender::send_empty_segment() {
     TCPSegment seg;
     seg.header().seqno = wrap(_next_seqno, _isn);
+    if (!_syn_sent) {
+        assert(_next_seqno == 0);
+        seg.header().syn = true;
+        _syn_sent = true;
+        _next_seqno += 1;
+        _outgoing_segments[_next_seqno] = seg;
+        _timer.start();
+    }
     _segments_out.push(seg);
-    _timer.start();
 }

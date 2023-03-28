@@ -20,6 +20,14 @@ class TCPConnection {
     //! for 10 * _cfg.rt_timeout milliseconds after both streams have ended,
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
     bool _linger_after_streams_finish{true};
+    // the last time of receiving one segment
+    uint64_t _last_time{0};
+
+    // fill sender window and send all segments
+    void send_data_segments();
+    // send ack to peer when receiving data segment from peer
+    void send_reply_segment(std::function<void(TCPSegment &esg)> fn);
+    void abort_connection();
 
   public:
     //! \name "Input" interface for the writer
