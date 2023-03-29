@@ -1,5 +1,4 @@
 #include "tcp_connection.hh"
-#include "util.hh"
 
 #include <iostream>
 #include <cassert>
@@ -72,12 +71,13 @@ size_t TCPConnection::write(const string &data) {
 void TCPConnection::tick(const size_t ms_since_last_tick) {
     _cur_time += ms_since_last_tick;
     _sender.tick(ms_since_last_tick);
-    send_available_segments();
     if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
-        abort_connection();
         send_rst();
+        abort_connection();
+    } else {
+        send_available_segments();
     }
-    // positive close
+    // active close
     if (_receiver.stream_out().eof() && _sender.stream_in().eof() && _linger_after_streams_finish
             && time_since_last_segment_received() >= 10 * _cfg.rt_timeout) {
         _linger_after_streams_finish = false;
@@ -103,7 +103,7 @@ void TCPConnection::send_available_segments() {
     auto &sender_segs = _sender.segments_out();
     while (!sender_segs.empty()) {
         auto &seg = sender_segs.front();
-        if (seg.header().fin) {
+        if (seg.header().syn == false) {
             seg.header().ackno = _receiver.ackno().value();
             seg.header().ack = true;
             seg.header().win = min(_receiver.stream_out().remaining_capacity(),
@@ -134,11 +134,14 @@ void TCPConnection::send_ack() {
 }
 
 void TCPConnection::send_rst() {
+    while (!_sender.segments_out().empty()) {
+        _sender.segments_out().pop();
+    }
     _sender.send_empty_segment();
     assert(_sender.segments_out().size() == 1);
-    TCPSegment &ack_seg = _sender.segments_out().front();
-    ack_seg.header().rst = true;
-    _segments_out.push(ack_seg);
+    TCPSegment &seg = _sender.segments_out().front();
+    seg.header().rst = true;
+    _segments_out.push(seg);
     _sender.segments_out().pop();
 }
 
