@@ -36,7 +36,7 @@ uint64_t TCPSender::bytes_in_flight() const {
 void TCPSender::fill_window() {
     // buf_size, win, MAX_PAYLOAD_SIZE
     if (_state == SenderState::CLOSED) {
-        send_empty_segment();
+        send_syn();
         return;
     }
     if (_state != SenderState::SYN_ACKED) {
@@ -158,13 +158,17 @@ unsigned int TCPSender::consecutive_retransmissions() const { return _consecutiv
 void TCPSender::send_empty_segment() {
     TCPSegment seg;
     seg.header().seqno = wrap(_next_seqno, _isn);
-    if (_state == SenderState::CLOSED) {
-        assert(_next_seqno == 0);
-        seg.header().syn = true;
-        _state = SenderState::SYN_SENT;
-        _next_seqno += 1;
-        _outgoing_segments[_next_seqno] = seg;
-        _timer.start();
-    }
+    _segments_out.push(seg);
+}
+
+void TCPSender::send_syn() {
+    TCPSegment seg;
+    seg.header().seqno = wrap(_next_seqno, _isn);
+    assert(_next_seqno == 0);
+    seg.header().syn = true;
+    _state = SenderState::SYN_SENT;
+    _next_seqno += 1;
+    _outgoing_segments[_next_seqno] = seg;
+    _timer.start();
     _segments_out.push(seg);
 }

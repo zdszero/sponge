@@ -34,7 +34,6 @@ void TCPConnection::segment_received(const TCPSegment &recv_seg) {
     // pass ackno and window size to sender, send available data
     if (header.ack) {
         if (_receiver.state() == ReceiverState::LISTEN) {
-            send_rst();
             return;
         }
         _sender.ack_received(header.ackno, header.win);
@@ -117,7 +116,13 @@ void TCPConnection::send_available_segments() {
 
 // send ack, rst
 void TCPConnection::send_ack() {
-    _sender.send_empty_segment();
+    if (_sender.state() == SenderState::CLOSED) {
+        // SYN+ACK
+        _sender.send_syn();
+    } else {
+        // ACK
+        _sender.send_empty_segment();
+    }
     assert(_sender.segments_out().size() == 1);
     TCPSegment &ack_seg = _sender.segments_out().front();
     ack_seg.header().ackno = _receiver.ackno().value();
