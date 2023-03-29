@@ -8,6 +8,13 @@
 
 #include <optional>
 
+enum ReceiverState {
+  ERROR,
+  LISTEN,
+  SYN_RECV,
+  FIN_RECV,
+};
+
 //! \brief The "receiver" part of a TCP implementation.
 
 //! Receives and reassembles segments into a ByteStream, and computes
@@ -64,6 +71,8 @@ class TCPReceiver {
     ByteStream &stream_out() { return _reassembler.stream_out(); }
     const ByteStream &stream_out() const { return _reassembler.stream_out(); }
     //!@}
+
+    ReceiverState state() const;
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_RECEIVER_HH

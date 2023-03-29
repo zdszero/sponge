@@ -10,6 +10,15 @@
 #include <queue>
 #include <map>
 
+enum class SenderState {
+  ERROR,
+  CLOSED,
+  SYN_SENT,
+  SYN_ACKED,
+  FIN_SENT,
+  FIN_ACKED,
+};
+
 //! \brief The "sender" part of a TCP implementation.
 
 //! Accepts a ByteStream, divides it up into segments and sends the
@@ -68,9 +77,7 @@ class TCPSender {
 
     unsigned int _rto;
     Timer _timer;
-    bool _sync{false};
-    bool _syn_sent{false}; // avoid 
-    bool _fin_sent{false};
+    SenderState _state{SenderState::CLOSED};
     uint16_t _win{65535};
     uint16_t _reported_win{65535};
     uint64_t _lastest_ack_absno{0};
@@ -132,6 +139,8 @@ class TCPSender {
     //! \brief relative seqno for the next byte to be sent
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
     //!@}
+
+    SenderState state() const { return _state; }
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH

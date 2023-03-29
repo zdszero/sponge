@@ -35,3 +35,14 @@ optional<WrappingInt32> TCPReceiver::ackno() const {
 }
 
 size_t TCPReceiver::window_size() const { return _reassembler.stream_out().remaining_capacity(); }
+
+ReceiverState TCPReceiver::state() const {
+    if (!_syn_recv) {
+        return ReceiverState::LISTEN;
+    }
+    if (stream_out().input_ended()) {
+        return FIN_RECV;
+    } else {
+        return SYN_RECV;
+    }
+}

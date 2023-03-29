@@ -35,11 +35,11 @@ uint64_t TCPSender::bytes_in_flight() const {
 
 void TCPSender::fill_window() {
     // buf_size, win, MAX_PAYLOAD_SIZE
-    if (!_syn_sent) {
+    if (_state == SenderState::CLOSED) {
         send_empty_segment();
         return;
     }
-    if (!_sync) {
+    if (_state != SenderState::SYN_ACKED) {
         return;
     }
     if (_win == 0 && _outgoing_segments.empty()) {
@@ -50,7 +50,7 @@ void TCPSender::fill_window() {
                 keep_alive.payload() = Buffer(_stream.read(1));
             } else if (_stream.input_ended()) {
                 keep_alive.header().fin = true;
-                _fin_sent = true;
+                _state = SenderState::FIN_SENT;
             }
             _outgoing_segments[_next_seqno] = keep_alive;
             _timer.start();
@@ -69,17 +69,17 @@ void TCPSender::fill_window() {
         seg.payload() = Buffer(_stream.read(payload_len));
         _win -= payload_len;
         // piggyback FIN
-        if (_stream.input_ended() && !_fin_sent && _win > 0) {
+        if (_stream.input_ended() && _state != SenderState::FIN_SENT && _win > 0) {
             seg.header().fin = true;
             _win -= 1;
-            _fin_sent = true;
+            _state = SenderState::FIN_SENT;
         }
         _segments_out.push(seg);
         _next_seqno += seg.length_in_sequence_space();
         _outgoing_segments[_next_seqno] = seg;
         _timer.start();
     }
-    if (_stream.input_ended() && !_fin_sent && _win > bytes_in_flight()) {
+    if (_stream.input_ended() && _state != SenderState::FIN_SENT && _win > bytes_in_flight()) {
         TCPSegment fin_seg;
         fin_seg.header().fin = true;
         fin_seg.header().seqno = wrap(_next_seqno, _isn);
@@ -87,7 +87,7 @@ void TCPSender::fill_window() {
         _next_seqno += 1;
         _outgoing_segments[_next_seqno] = fin_seg;
         _timer.start();
-        _fin_sent = true;
+        _state = SenderState::FIN_SENT;
     }
 }
 
@@ -116,7 +116,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         if (recv_absno >= it->first) {
             it = _outgoing_segments.erase(it);
             if (syn) {
-                _sync = true;
+                _state = SenderState::SYN_ACKED;
             }
             if (syn || fin) {
                 assert(_outgoing_segments.empty());
@@ -158,10 +158,10 @@ unsigned int TCPSender::consecutive_retransmissions() const { return _consecutiv
 void TCPSender::send_empty_segment() {
     TCPSegment seg;
     seg.header().seqno = wrap(_next_seqno, _isn);
-    if (!_syn_sent) {
+    if (_state == SenderState::CLOSED) {
         assert(_next_seqno == 0);
         seg.header().syn = true;
-        _syn_sent = true;
+        _state = SenderState::SYN_SENT;
         _next_seqno += 1;
         _outgoing_segments[_next_seqno] = seg;
         _timer.start();
