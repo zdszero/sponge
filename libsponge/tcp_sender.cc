@@ -42,25 +42,6 @@ void TCPSender::fill_window() {
     if (_state != SenderState::SYN_ACKED) {
         return;
     }
-    if (_win == 0 && _outgoing_segments.empty()) {
-        TCPSegment keep_alive;
-        if (_stream.buffer_size() > 0 || _stream.input_ended()) {
-            keep_alive.header().seqno = wrap(_next_seqno, _isn);
-            if (_stream.buffer_size() > 0) {
-                keep_alive.payload() = Buffer(_stream.read(1));
-            } else if (_stream.input_ended()) {
-                keep_alive.header().fin = true;
-                _state = SenderState::FIN_SENT;
-            }
-            _outgoing_segments[_next_seqno] = keep_alive;
-            _timer.start();
-        } else {
-            keep_alive.header().seqno = wrap(_next_seqno - 1, _isn);
-        }
-        _next_seqno += keep_alive.length_in_sequence_space();
-        _segments_out.push(keep_alive);
-        return;
-    }
     while (_win > 0 && _stream.buffer_size() > 0) {
         TCPSegment seg;
         seg.header().seqno = wrap(_next_seqno, _isn);
@@ -98,7 +79,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     // with same ackno, window size can be reset, but timer cannot be reset
     if (recv_absno >= _lastest_ack_absno) {
         _reported_win = window_size;
-        _win = window_size;
+        _win = (window_size == 0 ? 1 : window_size);
     }
     if (recv_absno <= _lastest_ack_absno) {
         return;
