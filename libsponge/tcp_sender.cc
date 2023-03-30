@@ -42,33 +42,23 @@ void TCPSender::fill_window() {
     if (_state != SenderState::SYN_ACKED) {
         return;
     }
-    while (_win > 0 && _stream.buffer_size() > 0) {
+    uint64_t sent_bytes = bytes_in_flight();
+    while (_win > sent_bytes && (_stream.buffer_size() > 0 || (_stream.eof() && _state != SenderState::FIN_SENT))) {
         TCPSegment seg;
         seg.header().seqno = wrap(_next_seqno, _isn);
-        size_t payload_len = min(static_cast<size_t>(_win),
+        size_t payload_len = min(static_cast<size_t>(_win - sent_bytes),
                 min(TCPConfig::MAX_PAYLOAD_SIZE, _stream.buffer_size()));
         seg.payload() = Buffer(_stream.read(payload_len));
-        _win -= payload_len;
         // piggyback FIN
-        if (_stream.input_ended() && _state != SenderState::FIN_SENT && _win > 0) {
+        if (_stream.eof() && _win > sent_bytes + payload_len) {
             seg.header().fin = true;
-            _win -= 1;
             _state = SenderState::FIN_SENT;
         }
+        sent_bytes += payload_len;
         _segments_out.push(seg);
         _next_seqno += seg.length_in_sequence_space();
         _outgoing_segments[_next_seqno] = seg;
         _timer.start();
-    }
-    if (_stream.input_ended() && _state != SenderState::FIN_SENT && _win > bytes_in_flight()) {
-        TCPSegment fin_seg;
-        fin_seg.header().fin = true;
-        fin_seg.header().seqno = wrap(_next_seqno, _isn);
-        _segments_out.push(fin_seg);
-        _next_seqno += 1;
-        _outgoing_segments[_next_seqno] = fin_seg;
-        _timer.start();
-        _state = SenderState::FIN_SENT;
     }
 }
 
